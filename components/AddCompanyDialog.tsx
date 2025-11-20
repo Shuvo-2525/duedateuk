@@ -16,13 +16,14 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Plus, Search, Loader2 } from "lucide-react";
+import { Plus, Search, Loader2, AlertCircle } from "lucide-react";
 
 export default function AddCompanyDialog() {
   const { user } = useAuth();
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
+  const [error, setError] = useState(""); // New error state
 
   // Form States
   const [name, setName] = useState("");
@@ -35,21 +36,21 @@ export default function AddCompanyDialog() {
     if (!number) return;
     
     setIsSearching(true);
+    setError(""); // Clear previous errors
     try {
       const res = await fetch(`/api/company/${number}`);
       const data = await res.json();
 
       if (res.ok) {
         setName(data.companyName);
-        // Companies House returns dates like "2025-12-25", which fits our input type="date"
         if (data.accountsNextDue) setAccountsDue(data.accountsNextDue);
         if (data.confirmationStatementNextDue) setStatementDue(data.confirmationStatementNextDue);
       } else {
-        alert(data.error || "Company not found");
+        setError(data.error || "Company not found");
       }
-    } catch (error) {
-      console.error("Search error:", error);
-      alert("Failed to search company.");
+    } catch (err) {
+      console.error("Search error:", err);
+      setError("Failed to search. Check your internet connection.");
     } finally {
       setIsSearching(false);
     }
@@ -57,9 +58,13 @@ export default function AddCompanyDialog() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user) return;
+    if (!user) {
+      setError("You must be logged in to save.");
+      return;
+    }
 
     setLoading(true);
+    setError("");
 
     try {
       await addDoc(collection(db, "companies"), {
@@ -76,15 +81,20 @@ export default function AddCompanyDialog() {
         createdAt: serverTimestamp(),
       });
 
-      // Reset form and close dialog
+      // Success! Reset form and close dialog
       setName("");
       setNumber("");
       setAccountsDue("");
       setStatementDue("");
       setOpen(false);
-    } catch (error) {
-      console.error("Error adding company: ", error);
-      alert("Failed to add company. Check console for details.");
+    } catch (err: any) {
+      console.error("Error adding company: ", err);
+      // Show specific error messages
+      if (err.code === "permission-denied") {
+        setError("Permission denied. Check your Firestore Security Rules.");
+      } else {
+        setError("Failed to save. Check console for details.");
+      }
     } finally {
       setLoading(false);
     }
@@ -104,6 +114,7 @@ export default function AddCompanyDialog() {
             Enter the Company Number and click Search to auto-fill dates.
           </DialogDescription>
         </DialogHeader>
+
         <form onSubmit={handleSubmit} className="grid gap-4 py-4">
           
           {/* Company Number + Search Button */}
@@ -167,8 +178,18 @@ export default function AddCompanyDialog() {
               required
             />
           </div>
+
+          {/* Error Message Display */}
+          {error && (
+            <div className="flex items-center gap-2 text-red-600 text-sm justify-end">
+              <AlertCircle className="h-4 w-4" />
+              <span>{error}</span>
+            </div>
+          )}
+
           <DialogFooter>
             <Button type="submit" disabled={loading}>
+              {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
               {loading ? "Saving..." : "Save Company"}
             </Button>
           </DialogFooter>
