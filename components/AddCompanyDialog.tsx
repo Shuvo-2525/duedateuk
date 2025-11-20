@@ -125,7 +125,7 @@ export default function AddCompanyDialog() {
           <Plus className="mr-2 h-4 w-4" /> Add Company
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[550px]">
+      <DialogContent className="sm:max-w-[480px]">
         <DialogHeader>
           <DialogTitle>Add Company</DialogTitle>
           <DialogDescription>
@@ -198,9 +198,9 @@ export default function AddCompanyDialog() {
 
           {/* Error Message Section - FIXED UI */}
           {error && (
-            <div className="col-span-4 bg-red-50 border border-red-200 rounded-md p-3 flex items-center gap-3">
-              <AlertCircle className="h-5 w-5 text-red-600 shrink-0" />
-              <span className="text-sm text-red-700 font-medium">{error}</span>
+            <div className="bg-red-50 text-red-600 text-sm p-3 rounded-md border border-red-200 flex items-center gap-2">
+              <AlertCircle className="h-4 w-4 shrink-0" />
+              <span>{error}</span>
             </div>
           )}
 
