@@ -8,7 +8,14 @@ import { auth, db } from "@/lib/firebase";
 import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import AddCompanyDialog from "@/components/AddCompanyDialog";
 import { CalendarDays, AlertCircle, CheckCircle2, ExternalLink, Trash2, Building, MapPin, Clock, Loader2 } from "lucide-react";
 
@@ -31,11 +38,16 @@ export default function DashboardPage() {
   const [isLoadingData, setIsLoadingData] = useState(true);
   const [indexErrorLink, setIndexErrorLink] = useState<string | null>(null);
 
-  // States for Modal
+  // States for Details Modal
   const [selectedCompany, setSelectedCompany] = useState<Company | null>(null);
   const [companyDetails, setCompanyDetails] = useState<any>(null);
   const [isLoadingDetails, setIsLoadingDetails] = useState(false);
   const [detailsError, setDetailsError] = useState("");
+
+  // States for Delete Confirmation Modal
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [companyToDelete, setCompanyToDelete] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // 1. Protect the route
   useEffect(() => {
@@ -112,15 +124,27 @@ export default function DashboardPage() {
     }
   };
 
-  const handleDelete = async (e: React.MouseEvent, id: string) => {
-    e.stopPropagation(); // Prevent opening the modal when clicking delete
-    if (confirm("Are you sure you want to remove this company from your dashboard?")) {
-      try {
-        await deleteDoc(doc(db, "companies", id));
-      } catch (error) {
-        console.error("Error deleting company:", error);
-        alert("Failed to delete company.");
-      }
+  // Open delete confirmation dialog
+  const initiateDelete = (e: React.MouseEvent, id: string) => {
+    e.stopPropagation();
+    setCompanyToDelete(id);
+    setDeleteConfirmOpen(true);
+  };
+
+  // Perform the actual delete
+  const confirmDelete = async () => {
+    if (!companyToDelete) return;
+    
+    setIsDeleting(true);
+    try {
+      await deleteDoc(doc(db, "companies", companyToDelete));
+      setDeleteConfirmOpen(false);
+      setCompanyToDelete(null);
+    } catch (error) {
+      console.error("Error deleting company:", error);
+      // Ideally use a toast here, but we'll log it for now
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -249,7 +273,7 @@ export default function DashboardPage() {
                       variant="ghost" 
                       size="icon" 
                       className="h-8 w-8 text-slate-400 hover:text-red-600 hover:bg-red-50 -mr-2 -mt-2"
-                      onClick={(e) => handleDelete(e, company.id)}
+                      onClick={(e) => initiateDelete(e, company.id)}
                     >
                       <Trash2 className="h-4 w-4" />
                       <span className="sr-only">Delete</span>
@@ -403,6 +427,35 @@ export default function DashboardPage() {
                 </div>
               ) : null}
             </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Delete Confirmation Modal */}
+        <Dialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+          <DialogContent className="sm:max-w-[425px]">
+            <DialogHeader>
+              <DialogTitle>Delete Company</DialogTitle>
+              <DialogDescription>
+                Are you sure you want to remove this company from your dashboard? This action cannot be undone.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setDeleteConfirmOpen(false)}>Cancel</Button>
+              <Button 
+                variant="destructive" 
+                onClick={confirmDelete}
+                disabled={isDeleting}
+              >
+                {isDeleting ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Deleting...
+                  </>
+                ) : (
+                  "Delete"
+                )}
+              </Button>
+            </DialogFooter>
           </DialogContent>
         </Dialog>
 
