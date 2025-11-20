@@ -23,7 +23,7 @@ export default function AddCompanyDialog() {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
-  const [error, setError] = useState(""); // New error state
+  const [error, setError] = useState(""); // New state for error messages
 
   // Form States
   const [name, setName] = useState("");
@@ -36,7 +36,7 @@ export default function AddCompanyDialog() {
     if (!number) return;
     
     setIsSearching(true);
-    setError(""); // Clear previous errors
+    setError("");
     try {
       const res = await fetch(`/api/company/${number}`);
       const data = await res.json();
@@ -81,7 +81,7 @@ export default function AddCompanyDialog() {
         createdAt: serverTimestamp(),
       });
 
-      // Success! Reset form and close dialog
+      // Reset form and close dialog
       setName("");
       setNumber("");
       setAccountsDue("");
@@ -89,9 +89,10 @@ export default function AddCompanyDialog() {
       setOpen(false);
     } catch (err: any) {
       console.error("Error adding company: ", err);
-      // Show specific error messages
+      
+      // Specific error handling for permissions
       if (err.code === "permission-denied") {
-        setError("Permission denied. Check your Firestore Security Rules.");
+        setError("Permission denied. Please check the Firestore Rules in your Firebase Console.");
       } else {
         setError("Failed to save. Check console for details.");
       }
@@ -114,7 +115,6 @@ export default function AddCompanyDialog() {
             Enter the Company Number and click Search to auto-fill dates.
           </DialogDescription>
         </DialogHeader>
-
         <form onSubmit={handleSubmit} className="grid gap-4 py-4">
           
           {/* Company Number + Search Button */}
@@ -179,9 +179,9 @@ export default function AddCompanyDialog() {
             />
           </div>
 
-          {/* Error Message Display */}
+          {/* Error Message Section */}
           {error && (
-            <div className="flex items-center gap-2 text-red-600 text-sm justify-end">
+            <div className="flex items-center gap-2 text-red-600 text-sm justify-end col-span-4">
               <AlertCircle className="h-4 w-4" />
               <span>{error}</span>
             </div>
@@ -189,7 +189,6 @@ export default function AddCompanyDialog() {
 
           <DialogFooter>
             <Button type="submit" disabled={loading}>
-              {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
               {loading ? "Saving..." : "Save Company"}
             </Button>
           </DialogFooter>

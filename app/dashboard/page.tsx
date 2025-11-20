@@ -28,7 +28,7 @@ export default function DashboardPage() {
   const router = useRouter();
   const [companies, setCompanies] = useState<Company[]>([]);
   const [isLoadingData, setIsLoadingData] = useState(true);
-  const [indexErrorLink, setIndexErrorLink] = useState<string | null>(null); // To store the index creation link
+  const [indexErrorLink, setIndexErrorLink] = useState<string | null>(null); // Store the index link
 
   // 1. Protect the route
   useEffect(() => {
@@ -59,10 +59,8 @@ export default function DashboardPage() {
       console.error("Error fetching companies:", error);
       setIsLoadingData(false);
       
-      // Check if it's a missing index error
+      // Detect Missing Index Error and extract link
       if (error.message.includes("requires an index")) {
-        // Extract the URL from the error message if possible
-        // The error usually looks like: "The query requires an index. You can create it here: https://..."
         const match = error.message.match(/(https:\/\/console\.firebase\.google\.com[^\s]+)/);
         if (match) {
           setIndexErrorLink(match[1]);
@@ -97,10 +95,8 @@ export default function DashboardPage() {
   const getDaysRemaining = (targetDateStr: string) => {
     const due = parseLocalDate(targetDateStr);
     if (!due) return 0;
-
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-
     const diffTime = due.getTime() - today.getTime();
     return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
   };
@@ -144,14 +140,15 @@ export default function DashboardPage() {
       </header>
 
       <main className="p-6 max-w-7xl mx-auto">
-        {/* CRITICAL: Show Index Error if present */}
+        
+        {/* SHOW DATABASE CONFIG ERROR IF DETECTED */}
         {indexErrorLink && (
           <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-lg flex items-start gap-3 text-amber-900">
             <AlertCircle className="h-5 w-5 text-amber-600 mt-0.5 shrink-0" />
             <div>
               <h3 className="font-semibold">Database Setup Required</h3>
               <p className="text-sm mt-1 mb-2">
-                To display your companies securely, Firebase requires a "Composite Index".
+                To display your companies sorted by date, Firebase requires a "Composite Index".
               </p>
               <a 
                 href={indexErrorLink} 
