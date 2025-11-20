@@ -39,12 +39,17 @@ export async function GET(
 
     const data = await response.json();
 
-    // Return only the fields we need
+    // Return mapped fields AND the full raw data for the details modal
     return NextResponse.json({
+      // Mapped fields for consistency
       companyName: data.company_name,
+      companyNumber: data.company_number,
       accountsNextDue: data.accounts?.next_made_up_to || data.accounts?.next_due || "",
       confirmationStatementNextDue: data.confirmation_statement?.next_made_up_to || data.confirmation_statement?.next_due || "",
       status: data.company_status,
+      
+      // Pass through full data object so frontend can show everything
+      ...data 
     });
 
   } catch (error) {

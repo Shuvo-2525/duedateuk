@@ -3,13 +3,14 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { signOut } from "firebase/auth";
-import { collection, query, where, onSnapshot, orderBy } from "firebase/firestore";
+import { collection, query, where, onSnapshot, orderBy, deleteDoc, doc } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
 import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import AddCompanyDialog from "@/components/AddCompanyDialog";
-import { CalendarDays, AlertCircle, CheckCircle2, ExternalLink } from "lucide-react";
+import { CalendarDays, AlertCircle, CheckCircle2, ExternalLink, Trash2, Building, MapPin, Clock, Loader2 } from "lucide-react";
 
 interface Company {
   id: string;
@@ -28,7 +29,13 @@ export default function DashboardPage() {
   const router = useRouter();
   const [companies, setCompanies] = useState<Company[]>([]);
   const [isLoadingData, setIsLoadingData] = useState(true);
-  const [indexErrorLink, setIndexErrorLink] = useState<string | null>(null); // Store the index link
+  const [indexErrorLink, setIndexErrorLink] = useState<string | null>(null);
+
+  // States for Modal
+  const [selectedCompany, setSelectedCompany] = useState<Company | null>(null);
+  const [companyDetails, setCompanyDetails] = useState<any>(null);
+  const [isLoadingDetails, setIsLoadingDetails] = useState(false);
+  const [detailsError, setDetailsError] = useState("");
 
   // 1. Protect the route
   useEffect(() => {
@@ -54,12 +61,11 @@ export default function DashboardPage() {
       });
       setCompanies(companyList);
       setIsLoadingData(false);
-      setIndexErrorLink(null); // Clear error if successful
+      setIndexErrorLink(null);
     }, (error) => {
       console.error("Error fetching companies:", error);
       setIsLoadingData(false);
       
-      // Detect Missing Index Error and extract link
       if (error.message.includes("requires an index")) {
         const match = error.message.match(/(https:\/\/console\.firebase\.google\.com[^\s]+)/);
         if (match) {
@@ -71,12 +77,50 @@ export default function DashboardPage() {
     return () => unsubscribe();
   }, [user]);
 
+  // 3. Fetch Details when Modal opens
+  useEffect(() => {
+    if (selectedCompany) {
+      const fetchDetails = async () => {
+        setIsLoadingDetails(true);
+        setDetailsError("");
+        setCompanyDetails(null);
+        
+        try {
+          const res = await fetch(`/api/company/${selectedCompany.companyNumber}`);
+          const data = await res.json();
+          
+          if (!res.ok) {
+            throw new Error(data.error || "Failed to fetch details");
+          }
+          setCompanyDetails(data);
+        } catch (err: any) {
+          setDetailsError(err.message);
+        } finally {
+          setIsLoadingDetails(false);
+        }
+      };
+      fetchDetails();
+    }
+  }, [selectedCompany]);
+
   const handleSignOut = async () => {
     try {
       await signOut(auth);
       router.push("/");
     } catch (error) {
       console.error("Error signing out", error);
+    }
+  };
+
+  const handleDelete = async (e: React.MouseEvent, id: string) => {
+    e.stopPropagation(); // Prevent opening the modal when clicking delete
+    if (confirm("Are you sure you want to remove this company from your dashboard?")) {
+      try {
+        await deleteDoc(doc(db, "companies", id));
+      } catch (error) {
+        console.error("Error deleting company:", error);
+        alert("Failed to delete company.");
+      }
     }
   };
 
@@ -141,7 +185,7 @@ export default function DashboardPage() {
 
       <main className="p-6 max-w-7xl mx-auto">
         
-        {/* SHOW DATABASE CONFIG ERROR IF DETECTED */}
+        {/* Index Error */}
         {indexErrorLink && (
           <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-lg flex items-start gap-3 text-amber-900">
             <AlertCircle className="h-5 w-5 text-amber-600 mt-0.5 shrink-0" />
@@ -190,13 +234,26 @@ export default function DashboardPage() {
             const stmtDays = getDaysRemaining(stmtDue);
 
             return (
-              <Card key={company.id} className="overflow-hidden hover:shadow-md transition-shadow dark:bg-slate-900 dark:border-slate-800">
+              <Card 
+                key={company.id} 
+                className="overflow-hidden hover:shadow-md transition-all cursor-pointer group dark:bg-slate-900 dark:border-slate-800"
+                onClick={() => setSelectedCompany(company)}
+              >
                 <CardHeader className="pb-3 bg-white dark:bg-slate-900 border-b dark:border-slate-800">
                   <div className="flex justify-between items-start">
                     <div>
-                      <CardTitle className="font-bold text-lg">{company.companyName}</CardTitle>
+                      <CardTitle className="font-bold text-lg group-hover:text-blue-600 transition-colors">{company.companyName}</CardTitle>
                       <p className="text-xs font-mono text-slate-400 mt-1">#{company.companyNumber}</p>
                     </div>
+                    <Button 
+                      variant="ghost" 
+                      size="icon" 
+                      className="h-8 w-8 text-slate-400 hover:text-red-600 hover:bg-red-50 -mr-2 -mt-2"
+                      onClick={(e) => handleDelete(e, company.id)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      <span className="sr-only">Delete</span>
+                    </Button>
                   </div>
                 </CardHeader>
                 <CardContent className="pt-4 grid gap-4">
@@ -234,6 +291,121 @@ export default function DashboardPage() {
             );
           })}
         </div>
+
+        {/* Company Details Modal */}
+        <Dialog open={!!selectedCompany} onOpenChange={(open) => !open && setSelectedCompany(null)}>
+          <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="text-xl">{selectedCompany?.companyName}</DialogTitle>
+              <p className="text-sm text-muted-foreground">#{selectedCompany?.companyNumber}</p>
+            </DialogHeader>
+            
+            <div className="mt-4">
+              {isLoadingDetails ? (
+                <div className="flex flex-col items-center justify-center py-8 text-slate-500">
+                  <Loader2 className="h-8 w-8 animate-spin mb-2 text-blue-600" />
+                  <p>Fetching live data from Companies House...</p>
+                </div>
+              ) : detailsError ? (
+                <div className="bg-red-50 text-red-700 p-4 rounded-lg border border-red-200 flex items-center gap-2">
+                  <AlertCircle className="h-5 w-5" />
+                  <p>{detailsError}</p>
+                </div>
+              ) : companyDetails ? (
+                <div className="space-y-6">
+                  
+                  {/* Status Badge */}
+                  <div className="flex items-center gap-2">
+                    <div className={`px-2.5 py-0.5 rounded-full text-xs font-semibold uppercase tracking-wide ${
+                      companyDetails.company_status === "active" 
+                        ? "bg-green-100 text-green-800" 
+                        : "bg-slate-100 text-slate-800"
+                    }`}>
+                      {companyDetails.company_status}
+                    </div>
+                    <span className="text-xs text-slate-500 uppercase tracking-wide border px-2 py-0.5 rounded-full">
+                      {companyDetails.type}
+                    </span>
+                  </div>
+
+                  {/* Address */}
+                  <div className="flex gap-3 items-start">
+                    <MapPin className="h-5 w-5 text-slate-400 mt-0.5 shrink-0" />
+                    <div>
+                      <h4 className="font-semibold text-sm text-slate-900">Registered Office</h4>
+                      <p className="text-sm text-slate-600 leading-relaxed">
+                        {[
+                          companyDetails.registered_office_address?.address_line_1,
+                          companyDetails.registered_office_address?.address_line_2,
+                          companyDetails.registered_office_address?.locality,
+                          companyDetails.registered_office_address?.postal_code
+                        ].filter(Boolean).join(", ")}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Incorporation Date */}
+                  <div className="flex gap-3 items-start">
+                    <Building className="h-5 w-5 text-slate-400 mt-0.5 shrink-0" />
+                    <div>
+                      <h4 className="font-semibold text-sm text-slate-900">Incorporated</h4>
+                      <p className="text-sm text-slate-600">
+                        {companyDetails.date_of_creation ? formatDateDisplay(companyDetails.date_of_creation) : "N/A"}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Deadlines Detailed View */}
+                  <div className="border-t pt-4 mt-4">
+                    <h4 className="font-semibold text-sm text-slate-900 mb-3 flex items-center gap-2">
+                      <Clock className="h-4 w-4" /> Compliance Deadlines
+                    </h4>
+                    
+                    <div className="grid gap-3">
+                      <div className="bg-slate-50 p-3 rounded-md border">
+                        <div className="flex justify-between text-sm mb-1">
+                          <span className="font-medium text-slate-700">Next Accounts</span>
+                          <span className="text-slate-500">
+                            Due: {formatDateDisplay(companyDetails.accounts?.next_due)}
+                          </span>
+                        </div>
+                        <div className="text-xs text-slate-500">
+                          Made up to: {formatDateDisplay(companyDetails.accounts?.next_made_up_to)}
+                        </div>
+                      </div>
+
+                      <div className="bg-slate-50 p-3 rounded-md border">
+                        <div className="flex justify-between text-sm mb-1">
+                          <span className="font-medium text-slate-700">Confirmation Statement</span>
+                          <span className="text-slate-500">
+                            Due: {formatDateDisplay(companyDetails.confirmation_statement?.next_due)}
+                          </span>
+                        </div>
+                        <div className="text-xs text-slate-500">
+                          Made up to: {formatDateDisplay(companyDetails.confirmation_statement?.next_made_up_to)}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {/* External Link */}
+                  <div className="pt-2 text-center">
+                    <a 
+                      href={`https://find-and-update.company-information.service.gov.uk/company/${selectedCompany.companyNumber}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs text-blue-600 hover:underline inline-flex items-center"
+                    >
+                      View on Companies House <ExternalLink className="ml-1 h-3 w-3" />
+                    </a>
+                  </div>
+
+                </div>
+              ) : null}
+            </div>
+          </DialogContent>
+        </Dialog>
+
       </main>
     </div>
   );

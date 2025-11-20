@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { collection, addDoc, serverTimestamp } from "firebase/firestore";
+import { collection, addDoc, serverTimestamp, query, where, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -23,7 +23,7 @@ export default function AddCompanyDialog() {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
-  const [error, setError] = useState(""); // New state for error messages
+  const [error, setError] = useState(""); 
 
   // Form States
   const [name, setName] = useState("");
@@ -43,6 +43,8 @@ export default function AddCompanyDialog() {
 
       if (res.ok) {
         setName(data.companyName);
+        // Update local number state to match the canonical number from API (e.g. formatted correctly)
+        setNumber(data.companyNumber); 
         if (data.accountsNextDue) setAccountsDue(data.accountsNextDue);
         if (data.confirmationStatementNextDue) setStatementDue(data.confirmationStatementNextDue);
       } else {
@@ -67,6 +69,22 @@ export default function AddCompanyDialog() {
     setError("");
 
     try {
+      // 1. Check for duplicates
+      const q = query(
+        collection(db, "companies"),
+        where("userId", "==", user.uid),
+        where("companyNumber", "==", number)
+      );
+      
+      const querySnapshot = await getDocs(q);
+      
+      if (!querySnapshot.empty) {
+        setError("This company has already been added to your list.");
+        setLoading(false);
+        return; 
+      }
+
+      // 2. Add if not duplicate
       await addDoc(collection(db, "companies"), {
         userId: user.uid,
         companyName: name,
@@ -90,9 +108,8 @@ export default function AddCompanyDialog() {
     } catch (err: any) {
       console.error("Error adding company: ", err);
       
-      // Specific error handling for permissions
       if (err.code === "permission-denied") {
-        setError("Permission denied. Please check the Firestore Rules in your Firebase Console.");
+        setError("Permission denied. Check console.");
       } else {
         setError("Failed to save. Check console for details.");
       }
