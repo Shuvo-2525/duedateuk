@@ -391,7 +391,7 @@ export default function DashboardPage() {
                   {/* External Link */}
                   <div className="pt-2 text-center">
                     <a 
-                      href={`https://find-and-update.company-information.service.gov.uk/company/${selectedCompany.companyNumber}`}
+                      href={`https://find-and-update.company-information.service.gov.uk/company/${selectedCompany?.companyNumber}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-xs text-blue-600 hover:underline inline-flex items-center"
